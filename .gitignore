@@ -20,6 +20,9 @@ data/chroma_db/
 data/articles/
 data/notes/
 
+# 采集原始数据（JSON，可重新生成）
+output/data/
+
 # IDE
 .idea/
 .vscode/

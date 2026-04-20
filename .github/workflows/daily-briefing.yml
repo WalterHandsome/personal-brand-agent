@@ -1,0 +1,43 @@
+name: AI Agent Daily Briefing
+
+on:
+  schedule:
+    # 每天 UTC 00:00（北京时间 08:00）
+    - cron: '0 0 * * *'
+  workflow_dispatch: # 支持手动触发
+
+permissions:
+  contents: write
+
+jobs:
+  collect-and-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run collector agent
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python -m brand_agent.agents.collector
+
+      - name: Commit and push briefing
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add output/
+          if git diff --cached --quiet; then
+            echo "No new briefing to commit"
+          else
+            git commit -m "docs: daily AI agent briefing $(date +%Y-%m-%d)"
+            git push
+          fi
