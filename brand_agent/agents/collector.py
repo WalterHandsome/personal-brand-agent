@@ -273,20 +273,56 @@ def _load_history_titles(days: int = 3) -> list[str]:
     return titles
 
 
+# 主题关键词映射：用于主题级去重
+TOPIC_ENTITIES = [
+    "mcp", "agent security", "agent safety", "agent governance",
+    "claude code", "codex", "cursor", "kiro",
+    "langgraph", "crewai", "openai agents sdk",
+    "hermes agent", "context engineering", "memory poisoning",
+]
+
+
+def _extract_topics(text: str) -> set[str]:
+    """从标题/摘要中提取主题实体"""
+    text_lower = text.lower()
+    return {t for t in TOPIC_ENTITIES if t in text_lower}
+
+
+def _load_history_topics(days: int = 3) -> set[str]:
+    """从历史简报中提取已覆盖的主题"""
+    topics = set()
+    briefings_dir = Path("output/briefings")
+    if not briefings_dir.exists():
+        return topics
+    for i in range(1, days + 1):
+        date_str = (datetime.now() - timedelta(days=i)).strftime("%Y-%m-%d")
+        filepath = briefings_dir / f"{date_str}.md"
+        if filepath.exists():
+            content = filepath.read_text(encoding="utf-8")
+            topics.update(_extract_topics(content))
+    return topics
+
+
 def deduplicate(state: CollectorState) -> CollectorState:
     seen_urls = set()
     seen_titles = []
     deduped = []
     history_titles = _load_history_titles()
+    history_topics = _load_history_topics()
 
     for item in state["raw_items"]:
         url_key = _url_hash(item.get("url", ""))
         if url_key in seen_urls:
             continue
         title = item.get("title", "")
+        # 标题相似度去重
         is_dup = any(_title_similarity(title, t) > 0.6 for t in seen_titles + history_titles)
         if is_dup:
             continue
+        # 主题级去重：如果该条目的所有主题都已在历史中覆盖过，降低优先级
+        item_topics = _extract_topics(f"{title} {item.get('summary', '')}")
+        if item_topics and item_topics.issubset(history_topics):
+            item["_topic_repeat"] = True  # 标记为主题重复，评分时降权
         seen_urls.add(url_key)
         seen_titles.append(title)
         deduped.append(item)
@@ -336,6 +372,9 @@ def score_items(state: CollectorState) -> CollectorState:
             s_practical = 3
 
         total = s_time + s_primary + s_relevance + s_practical
+        # 主题重复降权：已在历史简报中覆盖过的主题，总分 -3
+        if item.get("_topic_repeat"):
+            total = max(total - 3, 0)
         scored.append({**item, "score_timeliness": s_time, "score_primary": s_primary,
                        "score_relevance": s_relevance, "score_practical": s_practical, "score_total": total})
 
