@@ -1,0 +1,14 @@
+{
+  "enabled": true,
+  "name": "🐍 Python 代码守卫",
+  "description": "编辑 Python 文件后自动检查代码质量。",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": ["*.py"]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Python 文件刚被编辑。请快速检查：\n\n1. 是否有未使用的 import\n2. 是否有明显的类型错误（如字符串和数字混用）\n3. 异常处理是否过于宽泛（bare except 或 except Exception 不带日志）\n4. 是否有硬编码的密钥、token、密码（应使用环境变量）\n5. 函数是否缺少 docstring（公开函数应有）\n\n**回复规则：**\n- 没问题 → \"✅ 代码检查通过\"\n- 有问题 → 最多 3 条，格式：`⚠️ 问题描述`\n- 使用中文，保持极简"
+  }
+}
