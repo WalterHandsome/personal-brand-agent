@@ -74,10 +74,11 @@ def distribute(
         "latest", "--article", "-a", help="文章 ID 或 'latest'"
     ),
     platforms: str = typer.Option(
-        "blog", "--platforms", "-p", help="目标平台，逗号分隔: blog,juejin,twitter,zhihu"
+        "x", "--platforms", "-p",
+        help="Postiz 平台标识，逗号分隔: x,linkedin,bluesky,medium,threads 等"
     ),
 ):
-    """将文章分发到多个平台"""
+    """将文章通过 Postiz 分发到多个平台"""
     platform_list = [p.strip() for p in platforms.split(",")]
     console.print(
         Panel(f"📤 分发文章到: {', '.join(platform_list)}", style="bold blue")
@@ -90,6 +91,35 @@ def distribute(
     for platform, result in results.items():
         status = "✅" if result["success"] else "❌"
         console.print(f"  {status} {platform}: {result['message']}")
+
+
+@app.command()
+def channels():
+    """查看 Postiz 中已连接的社交媒体账号"""
+    console.print(Panel("🔗 已连接的平台", style="bold blue"))
+
+    from brand_agent.agents.distributor import list_channels
+
+    integrations = list_channels()
+    if not integrations:
+        console.print("  ⚠️ 未配置 Postiz 或无已连接账号")
+        console.print("  请先启动 Postiz 并在 .env 中配置 POSTIZ_URL 和 POSTIZ_API_KEY")
+        return
+
+    table = Table(title="Postiz 已连接平台")
+    table.add_column("平台", style="cyan")
+    table.add_column("账号", style="white")
+    table.add_column("ID", style="dim")
+
+    for item in integrations:
+        if not item.get("disabled"):
+            table.add_row(
+                item.get("providerIdentifier", ""),
+                item.get("name", ""),
+                item.get("id", "")[:12] + "...",
+            )
+
+    console.print(table)
 
 
 @app.command()
