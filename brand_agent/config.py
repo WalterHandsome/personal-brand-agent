@@ -26,6 +26,13 @@ class Settings(BaseSettings):
     blog_repo: str = ""
     blog_file: str = "blog.html"
 
+    # 推送配置
+    bark_url: str = ""  # Bark 推送地址，格式 https://api.day.app/你的key
+
+    # Postiz 配置（多平台分发）
+    postiz_url: str = ""       # Postiz API 地址，如 http://localhost:5000
+    postiz_api_key: str = ""   # Postiz API Key
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
 

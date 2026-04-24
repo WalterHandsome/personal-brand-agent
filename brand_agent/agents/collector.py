@@ -492,6 +492,16 @@ def save_brief(state: CollectorState) -> CollectorState:
     else:
         print("✅ 今日已采集完毕，暂无新增内容")
 
+    # Bark 推送通知
+    try:
+        from brand_agent.config import settings
+        if settings.bark_url:
+            from brand_agent.notify import push_bark, format_briefing_for_bark
+            title, body = format_briefing_for_bark(state["scored_items"], state["stats"])
+            push_bark(settings.bark_url, title, body)
+    except Exception as e:
+        print(f"⚠️ 推送跳过：{e}")
+
     # 保存原始数据
     data_dir = Path("output/data")
     data_dir.mkdir(parents=True, exist_ok=True)
