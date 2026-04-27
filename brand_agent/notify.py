@@ -41,6 +41,11 @@ def push_bark(bark_url: str, title: str, body: str, group: str = "AI简报") -> 
 def format_briefing_for_bark(scored_items: list[dict], stats: dict) -> tuple[str, str]:
     """将简报数据格式化为 Bark 推送内容
 
+    设计原则（参考 iOS 推送最佳实践）：
+    - 标题 ≤ 40 字符，锁屏不截断
+    - 正文展示 Top 5 要闻，每条 ≤ 80 字符
+    - 底部附统计摘要，让用户知道还有更多
+
     Returns:
         (title, body) 元组
     """
@@ -50,15 +55,19 @@ def format_briefing_for_bark(scored_items: list[dict], stats: dict) -> tuple[str
     final_count = stats.get("final_count", len(scored_items))
     title = f"🤖 AI 简报 {today}｜{final_count} 条精选"
 
-    # Bark 通知正文不宜太长，取 Top 5 要闻
     lines = []
     for i, item in enumerate(scored_items[:5], 1):
-        short_title = item.get("title", "")[:60]
+        short_title = item.get("title", "")[:80]
+        if len(item.get("title", "")) > 80:
+            short_title += "…"
         score = item.get("score_total", 0)
-        lines.append(f"{i}. [{score}分] {short_title}")
+        source = item.get("source", "")
+        # 有来源时标注，帮助快速判断信息权重
+        suffix = f" ({source})" if source else ""
+        lines.append(f"{i}. [{score}分] {short_title}{suffix}")
 
     if len(scored_items) > 5:
-        lines.append(f"\n...共 {final_count} 条，详见完整简报")
+        lines.append(f"\n…共 {final_count} 条，详见完整简报")
 
     body = "\n".join(lines)
     return title, body
