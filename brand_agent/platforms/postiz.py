@@ -35,6 +35,32 @@ class PostizClient:
         resp.raise_for_status()
         return resp.json()
 
+    def health_check(self) -> tuple[bool, str]:
+        """检查 Postiz API 连通性
+
+        Returns:
+            (是否健康, 描述信息)
+        """
+        try:
+            resp = httpx.get(
+                f"{self.base_url}/public/v1/integrations",
+                headers=self.headers,
+                timeout=5,
+            )
+            if resp.status_code == 200:
+                return True, "API 连通，认证通过"
+            if resp.status_code == 401:
+                return False, "API 连通，但 API Key 认证失败"
+            if resp.status_code == 403:
+                return False, "API 连通，但权限不足（请检查 API Key 权限）"
+            return False, f"HTTP {resp.status_code}: {resp.text[:100]}"
+        except httpx.ConnectError:
+            return False, f"无法连接到 {self.base_url}，请确认 Postiz 正在运行"
+        except httpx.TimeoutException:
+            return False, f"连接 {self.base_url} 超时"
+        except Exception as e:
+            return False, f"连接异常: {e}"
+
     def find_integration(self, provider: str) -> Optional[dict]:
         """按平台名称查找已连接的账号
 

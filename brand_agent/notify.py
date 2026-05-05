@@ -43,7 +43,7 @@ def format_briefing_for_bark(scored_items: list[dict], stats: dict) -> tuple[str
 
     设计原则（参考 iOS 推送最佳实践）：
     - 标题 ≤ 40 字符，锁屏不截断
-    - 正文展示 Top 5 要闻，每条 ≤ 80 字符
+    - 正文展示 Top 3 要闻，每条 ≤ 80 字符
     - 底部附统计摘要，让用户知道还有更多
 
     Returns:
@@ -52,22 +52,36 @@ def format_briefing_for_bark(scored_items: list[dict], stats: dict) -> tuple[str
     from datetime import datetime
 
     today = datetime.now().strftime("%m-%d")
-    final_count = stats.get("final_count", len(scored_items))
+    final_count = stats.get("final_count", 0)
+    # 如果 stats 中没有 final_count，从 scored_items 长度推断
+    if not final_count:
+        final_count = len(scored_items)
     title = f"🤖 AI 简报 {today}｜{final_count} 条精选"
 
     lines = []
-    for i, item in enumerate(scored_items[:5], 1):
-        short_title = item.get("title", "")[:80]
-        if len(item.get("title", "")) > 80:
+    for i, item in enumerate(scored_items[:3], 1):
+        short_title = item.get("title", "")[:60]
+        if len(item.get("title", "")) > 60:
             short_title += "…"
         score = item.get("score_total", 0)
-        source = item.get("source", "")
-        # 有来源时标注，帮助快速判断信息权重
-        suffix = f" ({source})" if source else ""
-        lines.append(f"{i}. [{score}分] {short_title}{suffix}")
+        source = _bark_source_label(item.get("source", ""))
+        lines.append(f"{i}. [{score}分] {short_title} ({source})")
 
-    if len(scored_items) > 5:
-        lines.append(f"\n…共 {final_count} 条，详见完整简报")
+    # 统计摘要
+    raw_count = stats.get("raw_count", 0)
+    if raw_count:
+        lines.append(f"\n📊 采集 {raw_count} → 收录 {final_count}")
+
+    if len(scored_items) > 3:
+        lines.append(f"…共 {final_count} 条，详见完整简报")
 
     body = "\n".join(lines)
     return title, body
+
+
+def _bark_source_label(source: str) -> str:
+    """Bark 推送中的来源简称"""
+    labels = {"hackernews": "HN", "github": "GH", "arxiv": "arXiv"}
+    if source.startswith("rss:"):
+        return source.replace("rss:", "")
+    return labels.get(source, source)

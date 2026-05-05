@@ -29,23 +29,107 @@ def init(
 
 
 @app.command()
-def trending():
-    """获取今日 AI 领域热点"""
-    console.print(Panel("📡 获取今日热点", style="bold blue"))
+def trending(
+    topic: str = typer.Option(
+        "ai-agent", "--topic", "-t",
+        help="主题标识: ai-agent / china-tech / global-tech"
+    ),
+):
+    """获取今日热点简报"""
+    console.print(Panel(f"📡 获取今日热点 [{topic}]", style="bold blue"))
 
     from brand_agent.agents.collector import collect_trending
 
-    topics = collect_trending()
+    result = collect_trending(topic=topic)
+    items = result.get("items", [])
+    stats = result.get("stats", {})
 
-    table = Table(title="🔥 今日 AI 热点")
+    table = Table(title=f"🔥 今日热点 [{topic}]")
     table.add_column("来源", style="cyan")
     table.add_column("标题", style="white")
-    table.add_column("热度", style="yellow")
+    table.add_column("评分", style="yellow")
 
-    for topic in topics:
-        table.add_row(topic["source"], topic["title"], topic["score"])
+    for item in items[:15]:
+        table.add_row(
+            item.get("source", ""),
+            item.get("title", "")[:70],
+            str(item.get("score_total", 0)),
+        )
 
     console.print(table)
+    console.print(f"\n📊 采集 {stats.get('raw_count', 0)} 条 → 收录 {stats.get('final_count', 0)} 条")
+    console.print(f"💾 简报已保存到 output/briefings/{topic}/")
+
+
+@app.command()
+def briefing(
+    topics: str = typer.Option(
+        "ai-agent,china-tech,global-tech", "--topics",
+        help="逗号分隔的主题列表，默认全部三个主题",
+    ),
+):
+    """一次采集多个主题简报（对标 Kiro Hook 的完整流程）
+
+    三个主题按顺序采集，后采集的会基于前面的结果做跨简报去重。
+    """
+    topic_list = [t.strip() for t in topics.split(",") if t.strip()]
+    console.print(Panel(f"📰 采集多主题简报: {', '.join(topic_list)}", style="bold blue"))
+
+    from brand_agent.agents.collector import collect_trending, TOPIC_CONFIG
+
+    summary_table = Table(title="📊 简报采集汇总")
+    summary_table.add_column("主题", style="cyan")
+    summary_table.add_column("原始", style="dim")
+    summary_table.add_column("去重", style="dim")
+    summary_table.add_column("跨简报", style="yellow")
+    summary_table.add_column("收录", style="green")
+
+    for topic in topic_list:
+        if topic not in TOPIC_CONFIG:
+            console.print(f"  ⚠️ 未知主题 [{topic}]，跳过")
+            continue
+        console.print(f"\n▶️  采集 [{topic}]...")
+        result = collect_trending(topic=topic)
+        stats = result.get("stats", {})
+        summary_table.add_row(
+            topic,
+            str(stats.get("raw_count", 0)),
+            str(stats.get("dedup_removed", 0)),
+            str(stats.get("cross_topic_removed", 0)),
+            str(stats.get("final_count", 0)),
+        )
+
+    console.print()
+    console.print(summary_table)
+
+
+@app.command("post-from-briefing")
+def post_from_briefing(
+    topic: str = typer.Option(
+        "ai-agent", "--topic", "-t",
+        help="主题: ai-agent / china-tech / global-tech",
+    ),
+):
+    """从今日简报头条生成 Twitter Thread 和博客摘要
+
+    生成的内容保存为标准 article 对象，可通过 `distribute` 命令发布。
+    """
+    console.print(Panel(f"✂️  从 [{topic}] 简报生成社交内容", style="bold blue"))
+
+    from brand_agent.agents.briefing_to_post import generate_post_from_briefing
+
+    result = generate_post_from_briefing(topic=topic)
+    article = result["article"]
+
+    if not result["briefing_path"]:
+        console.print(f"  ⚠️ 未找到 [{topic}] 的简报文件，请先运行 `brand-agent trending -t {topic}`")
+        return
+
+    console.print(f"  📄 简报来源: {result['briefing_path']}")
+    console.print(f"  📌 头条数量: {result['headlines_count']}")
+    console.print(f"  🐦 Twitter Thread: {len(article.get('twitter_thread', []))} 条推文")
+    console.print(f"  💾 已保存到: {result['saved_path']}")
+    console.print(f"\n  下一步: [bold cyan]brand-agent distribute -a {article['id']} -p x[/]")
 
 
 @app.command()
@@ -95,15 +179,38 @@ def distribute(
 
 @app.command()
 def channels():
-    """查看 Postiz 中已连接的社交媒体账号"""
-    console.print(Panel("🔗 已连接的平台", style="bold blue"))
+    """查看 Postiz 连通性和已连接的社交媒体账号"""
+    console.print(Panel("🔗 Postiz 健康检查 & 已连接平台", style="bold blue"))
 
+    from brand_agent.config import settings
+
+    if not settings.postiz_url or not settings.postiz_api_key:
+        console.print("  ⚠️ Postiz 未配置")
+        console.print("  请在 .env 中设置 POSTIZ_URL（如 http://localhost:5000）和 POSTIZ_API_KEY")
+        return
+
+    # 健康检查
+    from brand_agent.platforms.postiz import PostizClient
+    client = PostizClient(settings.postiz_url, settings.postiz_api_key)
+    ok, msg = client.health_check()
+    status_icon = "✅" if ok else "❌"
+    console.print(f"  {status_icon} Postiz [{settings.postiz_url}]: {msg}")
+
+    if not ok:
+        return
+
+    # 列出绑定的平台
     from brand_agent.agents.distributor import list_channels
+    try:
+        integrations = list_channels()
+    except Exception as e:
+        console.print(f"  ❌ 获取平台列表失败: {e}")
+        return
 
-    integrations = list_channels()
-    if not integrations:
-        console.print("  ⚠️ 未配置 Postiz 或无已连接账号")
-        console.print("  请先启动 Postiz 并在 .env 中配置 POSTIZ_URL 和 POSTIZ_API_KEY")
+    enabled = [i for i in integrations if not i.get("disabled")]
+    if not enabled:
+        console.print("  ⚠️ Postiz 连通但未绑定任何平台账号")
+        console.print("  请在 Postiz Web UI 中绑定至少一个社交账号")
         return
 
     table = Table(title="Postiz 已连接平台")
@@ -111,13 +218,12 @@ def channels():
     table.add_column("账号", style="white")
     table.add_column("ID", style="dim")
 
-    for item in integrations:
-        if not item.get("disabled"):
-            table.add_row(
-                item.get("providerIdentifier", ""),
-                item.get("name", ""),
-                item.get("id", "")[:12] + "...",
-            )
+    for item in enabled:
+        table.add_row(
+            item.get("providerIdentifier", ""),
+            item.get("name", ""),
+            item.get("id", "")[:12] + "...",
+        )
 
     console.print(table)
 

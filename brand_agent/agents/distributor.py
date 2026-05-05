@@ -75,11 +75,17 @@ def adapt_content(state: DistributorState) -> DistributorState:
     tags = article.get("tags", [])
     tag_str = " ".join(f"#{t}" for t in tags[:5]) if tags else ""
 
+    # 如果 article 中有预生成的 twitter_thread（例如来自 briefing_to_post），
+    # 直接使用；否则按规则适配。
+    pregen_thread = article.get("twitter_thread") or []
+
     adapted = {}
     for platform in state["platforms"]:
         if platform == "x":
-            # Twitter/X：拆分为 Thread，每条 ≤280 字符
-            adapted[platform] = _adapt_for_x(title, excerpt, body, tag_str)
+            if pregen_thread:
+                adapted[platform] = pregen_thread
+            else:
+                adapted[platform] = _adapt_for_x(title, excerpt, body, tag_str)
         elif platform in SHORT_CONTENT_PLATFORMS:
             # 短内容平台：标题 + 摘要 + 标签
             text = f"{title}\n\n{excerpt}"
@@ -145,6 +151,14 @@ def _adapt_for_x(title: str, excerpt: str, body: str, tag_str: str) -> list[str]
 def publish_to_platforms(state: DistributorState) -> DistributorState:
     """通过 Postiz API 发布到各平台"""
     from brand_agent.config import settings
+
+    # 文章加载失败 → 全部平台返回提示
+    if not state.get("article"):
+        state["results"] = {
+            p: {"success": False, "message": f"文章未找到: {state.get('article_id', '?')}"}
+            for p in state["platforms"]
+        }
+        return state
 
     if not settings.postiz_url or not settings.postiz_api_key:
         # Postiz 未配置，返回提示

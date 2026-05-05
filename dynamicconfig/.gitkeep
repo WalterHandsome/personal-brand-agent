@@ -1,0 +1,3 @@
+# Temporal 动态配置目录挂载点
+# docker-compose.postiz.yml 会把此目录挂到 /etc/temporal/config/dynamicconfig
+# 空目录即可，Temporal auto-setup 镜像会自动填充默认配置

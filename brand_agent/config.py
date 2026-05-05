@@ -12,6 +12,13 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     default_model: str = "claude-sonnet-4-20250514"
 
+    # AWS Bedrock 配置（推荐，优先级最高）
+    aws_access_key_id: str = ""
+    aws_secret_access_key: str = ""
+    aws_region: str = "us-east-1"
+    aws_bedrock_region: str = "us-east-1"
+    bedrock_model_id: str = "us.anthropic.claude-sonnet-4-20250514-v1:0"
+
     # 知识库配置
     chroma_persist_dir: str = "./data/chroma_db"
     notes_dir: str = "./data/notes"
@@ -21,6 +28,7 @@ class Settings(BaseSettings):
     juejin_cookie: str = ""
     twitter_bearer_token: str = ""
     zhihu_cookie: str = ""
+    tavily_api_key: str = ""  # Tavily 搜索 API（可选，无配置时 fallback 到 DuckDuckGo）
 
     # 博客配置
     blog_repo: str = ""
