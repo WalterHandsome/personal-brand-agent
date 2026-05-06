@@ -1,0 +1,31 @@
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+extend-exclude = [
+    ".venv",
+    "data",
+    "output",
+    ".kiro",
+]
+
+[tool.ruff.lint]
+# E/W: pycodestyle, F: pyflakes, I: isort, B: flake8-bugbear
+# UP: pyupgrade, SIM: flake8-simplify, RUF: ruff-specific
+# S: flake8-bandit（替代原 hook 的硬编码密钥检查）
+# T201: print 残留, G: logging 格式
+select = ["E", "W", "F", "I", "B", "UP", "SIM", "RUF", "S", "T201", "G"]
+
+ignore = [
+    "E501",   # line too long（formatter 处理）
+    "B008",   # 参数默认值里的函数调用（FastAPI 常见）
+    "S101",   # assert（测试常用）
+    "S105",   # hardcoded password string（误报多）
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S101", "S105", "S106"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
