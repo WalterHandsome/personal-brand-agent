@@ -56,7 +56,7 @@
 
 ```bash
 # 克隆项目
-git clone https://github.com/WalterHandsome/personal-brand-agent.git
+git clone https://github.com/walterwang0x01/personal-brand-agent.git
 cd personal-brand-agent
 
 # 安装依赖
